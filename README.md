@@ -75,40 +75,25 @@ This mimics real network latency without requiring an external service.
 
 ## Architecture
 
-### Why Next.js App Router (not plain React or Pages Router)?
+### Why Next.js App Router?
 
-**vs. plain React (Vite/CRA):**
+Next.js provides routing, layouts, and Route Handlers in the same project.
+Route Handlers are used here to simulate a backend API while keeping the
+project self-contained.
 
-- Built-in **file-based routing** and layouts — no separate router setup
-- **Route Handlers** provide a mock API in the same repo without a standalone server
-- Clear **Server / Client Component** boundaries for future SSR or prefetching
-- Production-ready defaults (bundling, code splitting, metadata) out of the box
+The App Router also provides a clear Server/Client Component boundary
+for future server-side data fetching if needed.
 
-**vs. Next.js Pages Router:**
-
-- **Layouts** (`layout.tsx`) compose cleanly — shared header/theme without prop drilling
-- **`useSearchParams`** integrates naturally with shareable filter state
-- Route Handlers replace `pages/api` with a colocated, modern API surface
-- Better alignment with current Next.js direction and React 19 patterns
-
-For this task, the feed is fully interactive (search, filters, infinite scroll, optimistic likes), so the page itself is a Client Component tree. App Router still adds value through routing, the mock API layer, layouts, and a path to server prefetch later.
 
 ### Why TanStack Query?
 
-Server and data state (posts, loading, error, refetch, cache) is managed with **TanStack Query**. This keeps async data concerns separate from UI and URL state, provides built-in caching, and makes retry/error handling straightforward.
 
-#### Client vs. server usage
+TanStack Query manages server state, including fetching, caching,
+loading/error states, pagination, and optimistic like mutations.
 
-`getQueryClient()` in `src/utils/query-client.ts` is set up to support **both environments**:
+This project uses TanStack Query on the client because the feed is
+fully interactive and does not require SSR data hydration.
 
-- **Server:** creates a fresh `QueryClient` per request (avoids leaking cache between users)
-- **Browser:** reuses a singleton client (preserves cache across navigations)
-
-In this project, **only the client path is used**. `QueryProvider` is a Client Component and all data fetching happens via `fetch()` from the browser (`useInfiniteQuery`, `useMutation`). The server factory exists as a production-ready pattern for future SSR prefetch (e.g. dehydrating the first feed page on the server), but it was not wired up here because the brief focuses on client-side interactivity — search debounce, infinite scroll, and optimistic updates — rather than server-rendered data hydration.
-
-### Alternative: `useFormState`
-
-Likes could also be handled with Next.js **`useFormState`** and a Server Action — a good fit for server-side mutations with built-in pending state. This project uses TanStack Query instead to support optimistic updates and rollback across the infinite feed cache.
 
 ### Why virtualization?
 
@@ -118,16 +103,11 @@ Rendering 10,000 DOM nodes would hurt scroll performance. **TanStack Virtual** r
 
 Search and filter values live in query parameters (`q`, `category`, `status`, `date`). This makes the current view shareable, bookmarkable, and resilient to refresh. Browser back/forward navigation works naturally.
 
-### Theme persistence (no flash)
+### Theme 
 
-Theme preference is stored in **`localStorage`** via `src/utils/theme.ts`.
-
-| Layer | Role |
-| ----- | ---- |
-| **localStorage** | Persists `"light"` or `"dark"` across reloads |
-| **Inline script** | Runs in `<head>` before paint — reads `localStorage` (or system preference) and applies the `.dark` class immediately |
-| **Inline styles** | Minimal dark background/text before Tailwind CSS loads, preventing a white flash |
-| **ThemeToggle** | Client-only (`dynamic` with `ssr: false`); initializes from `localStorage` via lazy `useState`; toggles call `setStoredTheme()` |
+The optional light/dark theme is persisted in localStorage.
+An initialization script applies the saved or system theme before paint
+to avoid a visible theme flash.
 
 
 
@@ -142,7 +122,7 @@ State is split by responsibility:
 | Theme preference   | localStorage (`src/utils/theme.ts`)          |
 | Local UI state     | React state (filter dropdown open/closed) |
 
-There is no need for Redux or Zustand — global client state is minimal and each mechanism maps cleanly to its use case.
+The application does not require a separate global client-state library because each state concern has a clear owner.
 
 ## Assumptions
 
@@ -164,9 +144,10 @@ Search input is debounced (300ms) before updating URL params and triggering a re
 
 ### Avoiding unnecessary work
 
-- Filter + paginate happen once per API request, not on every keystroke in the full dataset
-- Virtualizer resets scroll position when filters change
-- Query cache avoids redundant fetches within the stale window (60s)
+- Debounced search prevents a request on every keystroke.
+- Filtering and pagination are performed in the mock API layer.
+- Virtualization keeps the number of mounted DOM nodes small.
+- Query caching avoids unnecessary refetches within the stale window.
 
 
 ## Project structure
@@ -197,3 +178,12 @@ src/
     ├── theme.ts                    # Theme persistence, init script/styles
     └── debounce.ts
 ```
+## Intentional omissions
+
+- No real authentication or user accounts — outside the scope of the task.
+- No real backend or database — the API is intentionally implemented with
+  in-memory mock data.
+- No SSR hydration for the feed — the task is focused on client-side
+  interaction, filtering, pagination, and virtualization.
+- No external UI component library — the UI is implemented with Tailwind
+  and small reusable components.
